@@ -152,7 +152,7 @@ undersampling_byclusters<-function(x,TARGET=c(),exclude_feature=c(),groupby=5,n_
   print(acumulador_infocluster)
   
   #Maiores e menores clusters
-  infoclustertemp<-acumulador_infocluster[,c('cluster','ClusterColumm','tg_avg')]
+  infoclustertemp<-acumulador_infocluster[acumulador_infocluster$P<=0.05,c('cluster','ClusterColumm','tg_avg','Variable')]
   infoclustertemp$tg_avg<-as.numeric(infoclustertemp$tg_avg)
   clusterqnt<-quantile(infoclustertemp$tg_avg,probs = c(.05,0.80))
   special_clusters_up<-infoclustertemp[infoclustertemp$tg_avg>=clusterqnt[2],c('cluster','ClusterColumm')]
@@ -165,6 +165,12 @@ undersampling_byclusters<-function(x,TARGET=c(),exclude_feature=c(),groupby=5,n_
   print(paste0(special_clusters_up[,1]))
   
   special_cluster<-rbind(special_clusters_up,special_clusters_down)
+  
+  #Para regressão o cluster especial será somente os da variável target
+  redutor<-0.1
+  if(length(perce_original)==0){
+    redutor<-0.05
+    special_cluster<-infoclustertemp[infoclustertemp$Variable==TARGET,c('cluster','ClusterColumm')]}
   
   itemp<-itemp-1
   new_columns_names<-paste0("V_",seq(1:itemp))
@@ -195,7 +201,7 @@ undersampling_byclusters<-function(x,TARGET=c(),exclude_feature=c(),groupby=5,n_
       vetor0<-dataset_temp[,i]==j
       
       #combina as colunas mais relevantes para amostrar 2 a 2
-      if(length(special_cluster[special_cluster[,1]==j,1])==1 & length(perce_original)>0){
+      if(length(special_cluster[special_cluster[,1]==j,1])==1 | length(perce_original)==0){
         for(cluster_combinado in special_cluster[,1]){
           coluna_cluster<-unique(special_cluster[special_cluster[,1]==cluster_combinado,2]) #verifica em qual columa está e deixa apenas 1 registro
           vetor_temp_nao_amostrado<-vetor0 & dataset_temp[,'ID_AMOSTRA']==0 & dataset_temp[vetor0,coluna_cluster]==cluster_combinado
@@ -203,7 +209,7 @@ undersampling_byclusters<-function(x,TARGET=c(),exclude_feature=c(),groupby=5,n_
           NROW_LOOP0<-sum(vetor_temp_nao_amostrado)
           NROW_LOOP1<-sum(vetor_temp_amostrado)
           dataset_temp[vetor_temp_nao_amostrado,'rownum0']<-sample(1:NROW_LOOP0, NROW_LOOP0, replace=FALSE)
-          vetor_rownum<-vetor_temp_nao_amostrado & dataset_temp[,'rownum0']<=(n_balance*0.1-NROW_LOOP1)
+          vetor_rownum<-vetor_temp_nao_amostrado & dataset_temp[,'rownum0']<=(n_balance*redutor-NROW_LOOP1)
           soma_rownum<-sum(vetor_rownum)
           dataset_temp[vetor_rownum,'ID_AMOSTRA']<-sample(soma_rownum:1/soma_rownum)
         }
@@ -1396,7 +1402,7 @@ qtde<-NROW(dataset)
 extra<-paste0(dtini,"~",dtfim," | n=",qtde)
 
 y_pred <- predict(classifier, newdata = dataset_amostra[complete.cases(dataset_amostra[,TRAIN_VECTOR]),TRAIN_VECTOR],type="prob")
-nfold_check(dataset_amostra[complete.cases(dataset_amostra[,TRAIN_VECTOR]),TARGET],y_pred[,"Y"],infoextra='rf', infoextra2=extra,metrica_max='abserrordif')
+nfold_check(dataset_amostra[complete.cases(dataset_amostra[,TRAIN_VECTOR]),TARGET],y_pred[,"Y"],infoextra='rf', infoextra2=extra,metrica_max='MCC')
 
 #COMPARAR PREVISTO E REAL POR PADRÃO DE AÇO
 cutoff_class<-0.56
